@@ -19,28 +19,52 @@ package org.killbill.bitcoin.osgi;
 import com.ning.killbill.osgi.libs.killbill.KillbillActivatorBase;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
 import org.osgi.framework.BundleContext;
+import org.skife.config.ConfigurationObjectFactory;
+
+import java.util.Properties;
 
 public class BitcoinActivator extends KillbillActivatorBase {
 
     public static final String PLUGIN_NAME = "killbill-bitcoin";
 
     private OSGIKillbillEventHandler eventListener;
+    private TransactionManager transactionManager;
+    private Thread asyncInit;
+    private BitcoinListener btcListener;
 
     @Override
     public void start(final BundleContext context) throws Exception {
         super.start(context);
 
-        // Register an event listener (optional)
-        eventListener = new BitcoinListener(logService, killbillAPI);
+        final BitcoinConfig config = readBitcoinConfig();
+        this.transactionManager = new TransactionManager(logService, killbillAPI, config);
+
+        // Register the handler to receive KB events
+        this.eventListener = new KillbillListener(logService, killbillAPI, transactionManager, config);
         dispatcher.registerEventHandler(eventListener);
 
+        // Starts thread that will initialize btc library-- fetch latest blocks
+        this.btcListener = new BitcoinListener(transactionManager, config);
+        this.asyncInit = new Thread(new RunnableInit());
+        asyncInit.start();
+    }
+
+    private BitcoinConfig readBitcoinConfig() {
+        final Properties props = System.getProperties();
+        final ConfigurationObjectFactory factory = new ConfigurationObjectFactory(props);
+        return factory.build(BitcoinConfig.class);
+    }
+
+    private class RunnableInit implements Runnable {
+        @Override
+        public void run() {
+            btcListener.initialize();
+        }
     }
 
     @Override
     public void stop(final BundleContext context) throws Exception {
         super.stop(context);
-
-        // Do additional work on shutdown (optional)
     }
 
     @Override

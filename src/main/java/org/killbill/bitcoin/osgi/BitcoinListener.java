@@ -16,52 +16,100 @@
 
 package org.killbill.bitcoin.osgi;
 
-import java.util.UUID;
+import com.google.bitcoin.core.AbstractWalletEventListener;
+import com.google.bitcoin.core.NetworkParameters;
+import com.google.bitcoin.core.Transaction;
+import com.google.bitcoin.core.Wallet;
+import com.google.bitcoin.kits.WalletAppKit;
+import com.google.bitcoin.params.MainNetParams;
+import com.google.bitcoin.params.RegTestParams;
+import com.google.bitcoin.params.TestNet3Params;
+import com.google.bitcoin.utils.BriefLogFormatter;
+import com.google.common.annotations.VisibleForTesting;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import org.osgi.service.log.LogService;
+import java.io.File;
 
-import com.ning.billing.account.api.Account;
-import com.ning.billing.account.api.AccountApiException;
-import com.ning.billing.notification.plugin.api.ExtBusEvent;
-import com.ning.billing.util.callcontext.TenantContext;
-import com.ning.killbill.osgi.libs.killbill.OSGIKillbillAPI;
-import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
-import com.ning.killbill.osgi.libs.killbill.OSGIKillbillLogService;
+public class BitcoinListener {
 
-public class BitcoinListener implements OSGIKillbillEventHandler {
+    private static final Logger log = LoggerFactory.getLogger(BitcoinListener.class);
 
-    private final LogService logService;
-    private final OSGIKillbillAPI osgiKillbillAPI;
+    private final WalletAppKit kit;
+    private final TransactionManager transactionManager;
+    private final BitcoinConfig config;
 
-    public BitcoinListener(final OSGIKillbillLogService logService, final OSGIKillbillAPI killbillAPI) {
-        this.logService = logService;
-        this.osgiKillbillAPI = killbillAPI;
+    private volatile boolean isInitialized;
+
+    public BitcoinListener(final TransactionManager transactionManager, final BitcoinConfig config) {
+        this.transactionManager = transactionManager;
+        this.config = config;
+        this.kit = initializeKit();
+        this.isInitialized = false;
     }
 
-    @Override
-    public void handleKillbillEvent(final ExtBusEvent killbillEvent) {
-        logService.log(LogService.LOG_INFO, "Received event " + killbillEvent.getEventType() +
-                                            " for object id " + killbillEvent.getObjectId() +
-                                            " of type " + killbillEvent.getObjectType());
-        try {
-            final Account account = osgiKillbillAPI.getAccountUserApi().getAccountById(killbillEvent.getAccountId(), new BitcoinContext(killbillEvent.getTenantId()));
-            logService.log(LogService.LOG_INFO, "Account information: " + account);
-        } catch (AccountApiException e) {
-            logService.log(LogService.LOG_WARNING, "Unable to find account", e);
-        }
+
+    public void initialize() {
+        // Download the block chain and wait until it's done.
+        kit.startAndWait();
+
+        kit.wallet().addEventListener(new AbstractWalletEventListener() {
+            @Override
+            public void onTransactionConfidenceChanged(Wallet wallet, Transaction tx) {
+                if (tx.getConfidence().getDepthInBlocks() < config.getConfidenceBlockDepth()) {
+                    return;
+                }
+                if (transactionManager.isPendingTransaction(tx.getHash())) {
+                    transactionManager.notifyPaymentSystem(tx.getHash());
+                }
+            }
+        });
+        this.isInitialized = true;
     }
 
-    private static final class BitcoinContext implements TenantContext {
+    private WalletAppKit initializeKit() {
 
-        private final UUID tenantId;
+        BriefLogFormatter.init();
 
-        private BitcoinContext(final UUID tenantId) {
-            this.tenantId = tenantId;
+        final NetworkParameters params = getNetworkParameters();
+        final String filePrefix = getFilePrefix();
+
+        // Start up a basic app using a class that automates some boilerplate.
+        final WalletAppKit tmpKit = new WalletAppKit(params, new File(config.getInstallDirectory()), filePrefix);
+
+        if (params == RegTestParams.get()) {
+            // Regression test mode is designed for testing and development only, so there's no public network for it.
+            // If you pick this mode, you're expected to be running a local "bitcoind -regtest" instance.
+            tmpKit.connectToLocalHost();
         }
+        return tmpKit;
+    }
 
-        @Override
-        public UUID getTenantId() {
-            return tenantId;
+    @VisibleForTesting
+    WalletAppKit getKit() {
+        return kit;
+    }
+
+    @VisibleForTesting
+    NetworkParameters getNetworkParameters() {
+        NetworkParameters params;
+        if (config.getNetworkName().equals("testnet")) {
+            params = TestNet3Params.get();
+        } else if (config.getNetworkName().equals("regtest")) {
+            params = RegTestParams.get();
+        } else {
+            params = MainNetParams.get();
+        }
+        return params;
+    }
+
+    private String getFilePrefix() {
+        if (config.getNetworkName().equals("testnet")) {
+            return "killbill-bitcoin-testnet";
+        } else if (config.getNetworkName().equals("regtest")) {
+            return "killbill-bitcoin-regtest";
+        } else {
+            return "killbill-bitcoin";
         }
     }
 }
