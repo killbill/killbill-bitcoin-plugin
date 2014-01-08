@@ -82,8 +82,6 @@ public class KillbillListener implements OSGIKillbillEventHandler {
             final Payment payment = osgiKillbillAPI.getPaymentApi().getPayment(paymentEvent.getObjectId(), true, context);
             final PaymentMethod paymentMethod = osgiKillbillAPI.getPaymentApi().getPaymentMethodById(payment.getPaymentMethodId(), false, false, context);
 
-            paymentMethod.getPluginDetail().getExternalPaymentMethodId();
-
             // Only care about registered bitcoin plugins
             if (!BITCOIN_PLUGIN_NAMES.contains(paymentMethod.getPluginName())) {
                 log.info("KillbillListener filtering out (not a bitoin paymentMethod) payment " + paymentEvent.getObjectId());
