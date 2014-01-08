@@ -91,6 +91,11 @@ public class TestBitcoinListener {
 
         final BitcoinConfig config = new BitcoinConfig() {
             @Override
+            public boolean shouldGenerateKey() {
+                return false;
+            }
+
+            @Override
             public int getConfidenceBlockDepth() {
                 return 1;
             }
