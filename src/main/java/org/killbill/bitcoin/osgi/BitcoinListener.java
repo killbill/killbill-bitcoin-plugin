@@ -17,6 +17,7 @@
 package org.killbill.bitcoin.osgi;
 
 import com.google.bitcoin.core.AbstractWalletEventListener;
+import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.core.Wallet;
@@ -53,18 +54,32 @@ public class BitcoinListener {
         // Download the block chain and wait until it's done.
         kit.startAndWait();
 
+        addKeyIfMissing();
+
         kit.wallet().addEventListener(new AbstractWalletEventListener() {
             @Override
             public void onTransactionConfidenceChanged(Wallet wallet, Transaction tx) {
+
+                log.info("Bitcoin listener received new transaction " + tx.getHash() + ", confidence = " + tx.getConfidence());
+
                 if (tx.getConfidence().getDepthInBlocks() < config.getConfidenceBlockDepth()) {
                     return;
                 }
                 if (transactionManager.isPendingTransaction(tx.getHash())) {
+                    log.info("Bitcoin notifing transaction manager for " + tx.getHash() + ", confidence = " + tx.getConfidence());
                     transactionManager.notifyPaymentSystem(tx.getHash());
                 }
             }
         });
         this.isInitialized = true;
+    }
+
+    public void addKeyIfMissing() {
+        if (config.shouldGenerateKey()) {
+            final ECKey newKey = new ECKey();
+            kit.wallet().addKey(newKey);
+            log.info("GENERATED NEW KEY FOR BITCOIN WALLET : " + newKey.toAddress(getNetworkParameters()));
+        }
     }
 
     private WalletAppKit initializeKit() {

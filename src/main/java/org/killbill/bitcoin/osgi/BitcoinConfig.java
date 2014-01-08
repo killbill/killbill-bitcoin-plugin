@@ -23,6 +23,10 @@ import java.util.List;
 
 public interface BitcoinConfig {
 
+    @Config("org.killbill.bitcoin.generate.key")
+    @Default("false")
+    public boolean shouldGenerateKey();
+
     @Config("org.killbill.bitcoin.block.confidence.depth")
     @Default("6")
     public int getConfidenceBlockDepth();
@@ -31,7 +35,7 @@ public interface BitcoinConfig {
     @Default(".")
     public String getInstallDirectory();
 
-    @Config("org.killbill.bitcoin.install.dir")
+    @Config("org.killbill.bitcoin.network")
     @Default("testnet")
     public String getNetworkName();
 

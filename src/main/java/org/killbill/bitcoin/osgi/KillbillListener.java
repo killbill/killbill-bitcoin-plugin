@@ -17,17 +17,23 @@
 package org.killbill.bitcoin.osgi;
 
 import com.google.bitcoin.core.Sha256Hash;
+import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.ning.billing.notification.plugin.api.ExtBusEvent;
 import com.ning.billing.payment.api.Payment;
 import com.ning.billing.payment.api.PaymentApiException;
 import com.ning.billing.payment.api.PaymentMethod;
+import com.ning.billing.payment.api.PaymentStatus;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillAPI;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillLogService;
 import org.osgi.service.log.LogService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class KillbillListener implements OSGIKillbillEventHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(KillbillListener.class);
 
     private final ImmutableList<String> BITCOIN_PLUGIN_NAMES;
 
@@ -45,6 +51,9 @@ public class KillbillListener implements OSGIKillbillEventHandler {
             tmp.add(plugin);
         }
         this.BITCOIN_PLUGIN_NAMES = tmp.build();
+
+        Joiner join = Joiner.on(",");
+        log.info("KillbillListener listening :" + join.join(BITCOIN_PLUGIN_NAMES));
     }
 
 
@@ -73,10 +82,20 @@ public class KillbillListener implements OSGIKillbillEventHandler {
             final Payment payment = osgiKillbillAPI.getPaymentApi().getPayment(paymentEvent.getObjectId(), true, context);
             final PaymentMethod paymentMethod = osgiKillbillAPI.getPaymentApi().getPaymentMethodById(payment.getPaymentMethodId(), false, false, context);
 
+            paymentMethod.getPluginDetail().getExternalPaymentMethodId();
+
             // Only care about registered bitcoin plugins
             if (!BITCOIN_PLUGIN_NAMES.contains(paymentMethod.getPluginName())) {
+                log.info("KillbillListener filtering out (not a bitoin paymentMethod) payment " + paymentEvent.getObjectId());
                 return;
             }
+
+            if (payment.getPaymentStatus() != PaymentStatus.PENDING) {
+                log.info("KillbillListener filtering out (not in PENDING state) payment " + paymentEvent.getObjectId());
+                return;
+            }
+
+            log.info("KillbillListener registering payment " + paymentEvent.getObjectId());
 
             final Sha256Hash btcTxHash = new Sha256Hash(payment.getPaymentInfoPlugin().getFirstPaymentReferenceId());
             transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), btcTxHash));
