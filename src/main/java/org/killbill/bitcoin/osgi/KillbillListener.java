@@ -93,7 +93,7 @@ public class KillbillListener implements OSGIKillbillEventHandler {
                 return;
             }
 
-            log.info("KillbillListener registering payment " + paymentEvent.getObjectId() + ", txHash = " + payment.getPaymentInfoPlugin());
+            log.info("KillbillListener registering payment " + paymentEvent.getObjectId() + ", txHash = " + payment.getPaymentInfoPlugin().getFirstPaymentReferenceId());
 
             transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), payment.getPaymentInfoPlugin().getFirstPaymentReferenceId()));
         } catch (PaymentApiException e) {
