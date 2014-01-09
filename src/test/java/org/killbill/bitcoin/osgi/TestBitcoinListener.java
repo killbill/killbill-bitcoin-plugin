@@ -18,8 +18,8 @@ package org.killbill.bitcoin.osgi;
 
 import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.NetworkParameters;
-import com.google.bitcoin.core.Sha256Hash;
 import com.google.bitcoin.core.Wallet;
+import org.skife.config.TimeSpan;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,16 +56,16 @@ public class TestBitcoinListener {
     private final static String DEFAULT_INSTALL_DIR = ".";
     private final static String NETWORK = "testnet";
 
-    private final BitcoinListener bitcoinListener;
+    private final BitcoinManager bitcoinListener;
     private final BitcoinConfig config;
 
     public TestBitcoinListener(final BitcoinConfig config) {
         this.config = config;
-        this.bitcoinListener = new BitcoinListener(new MockTransactionmanager(), config);
+        this.bitcoinListener = new BitcoinManager(new MockTransactionmanager(), config);
     }
 
     public void initializeBitcoinListener() {
-        bitcoinListener.initialize();
+        bitcoinListener.start();
     }
 
     public void addKeyToWallet() {
@@ -114,6 +114,17 @@ public class TestBitcoinListener {
             public List<String> getKillbillBitcoinPlugins() {
                 return Collections.singletonList("killbill-coinbase");
             }
+
+            @Override
+            public String getForwardBankHash() {
+                return null;
+            }
+
+            @Override
+            public TimeSpan getForwardBankInterval() {
+                return null;
+            }
+
         };
         final TestBitcoinListener test = new TestBitcoinListener(config);
         test.initializeBitcoinListener();

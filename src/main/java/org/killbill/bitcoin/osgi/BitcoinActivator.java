@@ -30,7 +30,7 @@ public class BitcoinActivator extends KillbillActivatorBase {
     private OSGIKillbillEventHandler eventListener;
     private TransactionManager transactionManager;
     private Thread asyncInit;
-    private BitcoinListener btcListener;
+    private BitcoinManager btcListener;
 
     @Override
     public void start(final BundleContext context) throws Exception {
@@ -44,7 +44,7 @@ public class BitcoinActivator extends KillbillActivatorBase {
         dispatcher.registerEventHandler(eventListener);
 
         // Starts thread that will initialize btc library-- fetch latest blocks
-        this.btcListener = new BitcoinListener(transactionManager, config);
+        this.btcListener = new BitcoinManager(transactionManager, config);
         this.asyncInit = new Thread(new RunnableInit());
         asyncInit.start();
     }
@@ -58,13 +58,14 @@ public class BitcoinActivator extends KillbillActivatorBase {
     private class RunnableInit implements Runnable {
         @Override
         public void run() {
-            btcListener.initialize();
+            btcListener.start();
         }
     }
 
     @Override
     public void stop(final BundleContext context) throws Exception {
         super.stop(context);
+        btcListener.stop();
     }
 
     @Override

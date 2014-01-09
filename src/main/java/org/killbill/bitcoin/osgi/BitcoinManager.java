@@ -32,46 +32,57 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 
-public class BitcoinListener {
+public class BitcoinManager {
 
-    private static final Logger log = LoggerFactory.getLogger(BitcoinListener.class);
+    private static final Logger log = LoggerFactory.getLogger(BitcoinManager.class);
 
     private final WalletAppKit kit;
     private final TransactionManager transactionManager;
     private final BitcoinConfig config;
 
+    private final BankForwarder forwarder;
+
     private volatile boolean isInitialized;
 
-    public BitcoinListener(final TransactionManager transactionManager, final BitcoinConfig config) {
+    public BitcoinManager(final TransactionManager transactionManager, final BitcoinConfig config) {
         this.transactionManager = transactionManager;
         this.config = config;
         this.kit = initializeKit();
+        this.forwarder = new BankForwarder(config, kit.wallet(), getNetworkParameters());
         this.isInitialized = false;
     }
 
 
-    public void initialize() {
+    public void start() {
         // Download the block chain and wait until it's done.
         kit.startAndWait();
 
         addKeyIfMissing();
 
+        forwarder.start();
+
         kit.wallet().addEventListener(new AbstractWalletEventListener() {
             @Override
             public void onTransactionConfidenceChanged(Wallet wallet, Transaction tx) {
 
-                log.info("Bitcoin listener received new transaction " + tx.getHash() + ", confidence = " + tx.getConfidence());
+                final String txHashStr = tx.getHash().toString();
+
+                log.info("Bitcoin listener received new transaction " + txHashStr + ", confidence = " + tx.getConfidence());
 
                 if (tx.getConfidence().getDepthInBlocks() < config.getConfidenceBlockDepth()) {
                     return;
                 }
-                if (transactionManager.isPendingTransaction(tx.getHash().toString())) {
+                if (transactionManager.isPendingTransaction(txHashStr)) {
                     log.info("Bitcoin notifing transaction manager for " + tx.getHash() + ", confidence = " + tx.getConfidence());
-                    transactionManager.notifyPaymentSystem(tx.getHash().toString());
+                    transactionManager.notifyPaymentSystem(txHashStr);
                 }
             }
         });
         this.isInitialized = true;
+    }
+
+    public void stop() {
+        forwarder.stop();
     }
 
     public void addKeyIfMissing() {
