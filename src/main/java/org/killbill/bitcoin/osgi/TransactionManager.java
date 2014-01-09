@@ -33,21 +33,21 @@ public class TransactionManager {
     private final BitcoinConfig config;
 
     /* Map between pending bitcoin transactions and killbill pending payments */
-    private final ConcurrentHashMap<Sha256Hash, PendingPayment> pendingTransactions;
+    private final ConcurrentHashMap<String, PendingPayment> pendingTransactions;
 
 
     public TransactionManager(final LogService logService, final OSGIKillbillAPI osgiKillbillAPI, final BitcoinConfig config) {
         this.logService = logService;
         this.osgiKillbillAPI = osgiKillbillAPI;
         this.config = config;
-        this.pendingTransactions = new ConcurrentHashMap<Sha256Hash, PendingPayment>();
+        this.pendingTransactions = new ConcurrentHashMap<String, PendingPayment>();
     }
 
     public void registerPendingPayment(final PendingPayment pendingPayment) {
         pendingTransactions.putIfAbsent(pendingPayment.getBtcTxHash(), pendingPayment);
     }
 
-    public void notifyPaymentSystem(final Sha256Hash hash) {
+    public void notifyPaymentSystem(final String hash) {
 
         final PendingPayment pendingPayment = pendingTransactions.get(hash);
         final CallContext context = new BitcoinCallContext(pendingPayment.getTenantId(), config.getConfidenceBlockDepth());
@@ -64,7 +64,7 @@ public class TransactionManager {
         }
     }
 
-    public boolean isPendingTransaction(final Sha256Hash hash) {
+    public boolean isPendingTransaction(final String hash) {
         return pendingTransactions.contains(hash);
     }
 }

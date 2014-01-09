@@ -65,9 +65,9 @@ public class BitcoinListener {
                 if (tx.getConfidence().getDepthInBlocks() < config.getConfidenceBlockDepth()) {
                     return;
                 }
-                if (transactionManager.isPendingTransaction(tx.getHash())) {
+                if (transactionManager.isPendingTransaction(tx.getHash().toString())) {
                     log.info("Bitcoin notifing transaction manager for " + tx.getHash() + ", confidence = " + tx.getConfidence());
-                    transactionManager.notifyPaymentSystem(tx.getHash());
+                    transactionManager.notifyPaymentSystem(tx.getHash().toString());
                 }
             }
         });

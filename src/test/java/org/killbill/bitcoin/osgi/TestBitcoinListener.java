@@ -127,12 +127,12 @@ public class TestBitcoinListener {
         }
 
         @Override
-        public boolean isPendingTransaction(final Sha256Hash hash) {
+        public boolean isPendingTransaction(final String hash) {
             return true;
         }
 
         @Override
-        public void notifyPaymentSystem(final Sha256Hash hash) {
+        public void notifyPaymentSystem(final String hash) {
             logger.info("Received confirmed transcation " + hash);
         }
     }

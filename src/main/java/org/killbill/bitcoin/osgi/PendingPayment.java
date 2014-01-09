@@ -16,8 +16,6 @@
 
 package org.killbill.bitcoin.osgi;
 
-import com.google.bitcoin.core.Sha256Hash;
-
 import java.util.UUID;
 
 public class PendingPayment {
@@ -25,13 +23,13 @@ public class PendingPayment {
     private final UUID paymentId;
     private final UUID accountId;
     private final UUID tenantId;
-    private final Sha256Hash btcTxHash;
+    private final String btcTxHash;
 
-    public PendingPayment(final UUID paymentId, final UUID accountId, final UUID tenantId, final Sha256Hash btcTxHash) {
+    public PendingPayment(final UUID paymentId, final UUID accountId, final UUID tenantId, final String btcTxHash) {
         this.paymentId = paymentId;
         this.accountId = accountId;
         this.tenantId = tenantId;
-        this.btcTxHash= btcTxHash;
+        this.btcTxHash = btcTxHash;
     }
 
     public UUID getPaymentId() {
@@ -46,7 +44,7 @@ public class PendingPayment {
         return tenantId;
     }
 
-    public Sha256Hash getBtcTxHash() {
+    public String getBtcTxHash() {
         return btcTxHash;
     }
 }

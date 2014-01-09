@@ -93,10 +93,9 @@ public class KillbillListener implements OSGIKillbillEventHandler {
                 return;
             }
 
-            log.info("KillbillListener registering payment " + paymentEvent.getObjectId());
+            log.info("KillbillListener registering payment " + paymentEvent.getObjectId() + ", txHash = " + payment.getPaymentInfoPlugin());
 
-            final Sha256Hash btcTxHash = new Sha256Hash(payment.getPaymentInfoPlugin().getFirstPaymentReferenceId());
-            transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), btcTxHash));
+            transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), payment.getPaymentInfoPlugin().getFirstPaymentReferenceId()));
         } catch (PaymentApiException e) {
             logService.log(LogService.LOG_WARNING, "Unable to retrieve payment " + paymentEvent.getObjectId(), e);
         }
