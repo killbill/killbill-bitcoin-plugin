@@ -16,7 +16,6 @@
 
 package org.killbill.bitcoin.osgi;
 
-import com.google.bitcoin.core.Sha256Hash;
 import com.ning.billing.account.api.Account;
 import com.ning.billing.account.api.AccountApiException;
 import com.ning.billing.payment.api.PaymentApiException;
@@ -65,6 +64,6 @@ public class TransactionManager {
     }
 
     public boolean isPendingTransaction(final String hash) {
-        return pendingTransactions.contains(hash);
+        return pendingTransactions.containsKey(hash);
     }
 }
