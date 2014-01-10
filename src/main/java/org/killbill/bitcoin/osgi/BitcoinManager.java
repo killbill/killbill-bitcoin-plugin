@@ -40,7 +40,7 @@ public class BitcoinManager {
     private final TransactionManager transactionManager;
     private final BitcoinConfig config;
 
-    private final BankForwarder forwarder;
+    private BankForwarder forwarder;
 
     private volatile boolean isInitialized;
 
@@ -48,7 +48,6 @@ public class BitcoinManager {
         this.transactionManager = transactionManager;
         this.config = config;
         this.kit = initializeKit();
-        this.forwarder = new BankForwarder(config, kit.wallet(), getNetworkParameters());
         this.isInitialized = false;
     }
 
@@ -59,7 +58,7 @@ public class BitcoinManager {
 
         addKeyIfMissing();
 
-        forwarder.start();
+        startBankForwarder();
 
         kit.wallet().addEventListener(new AbstractWalletEventListener() {
             @Override
@@ -80,6 +79,11 @@ public class BitcoinManager {
             }
         });
         this.isInitialized = true;
+    }
+
+    private void startBankForwarder() {
+        this.forwarder = new BankForwarder(config, kit.wallet(), getNetworkParameters());
+        forwarder.start();
     }
 
     public void stop() {
