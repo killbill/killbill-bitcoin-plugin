@@ -23,6 +23,8 @@ import com.google.bitcoin.core.Wallet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.math.BigInteger;
+
 public class BankForwarder {
 
 
@@ -86,9 +88,17 @@ public class BankForwarder {
 
             private void doTransfer() {
                 try {
-                    log.info("Emptying wallet current balance = " + wallet.getBalance() + " satoshis ( ~ " + (wallet.getBalance().doubleValue() / BTC_TO_SATOSHI) + " BTC) ");
+                    final BigInteger balance = wallet.getBalance();
+                    log.info("Current wallet current balance = " + balance + " satoshis ( ~ " + (balance.doubleValue() / BTC_TO_SATOSHI) + " BTC) ");
+
+                    if (balance.longValue() < config.getMinForwardBalance()) {
+                        return;
+                    }
+
                     final Address output = new Address(params, bankHash);
-                    Wallet.SendRequest.emptyWallet(output);
+                    final Wallet.SendRequest req = Wallet.SendRequest.emptyWallet(output);
+                    final Wallet.SendResult result = wallet.sendCoins(req);
+                    log.info("Emptying wallet txHash = " + result.tx.getHash() + ",  tx = " + result.tx.toString());
                 } catch (AddressFormatException e) {
                     log.warn("Failed to empty wallet to target address " + bankHash, e);
                 }

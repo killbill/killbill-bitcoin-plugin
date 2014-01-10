@@ -53,6 +53,11 @@ public interface BitcoinConfig {
     @Config("org.killbill.bitcoin.forward.bank")
     public String getForwardBankHash();
 
+    @Description("The minimum amount (in satoshis) that we should have in the wallet before we attempt to forward it to the bank")
+    @Config("org.killbill.bitcoin.forward.min.balance")
+    @Default("10000000") // 0.1 BTC
+    public Long getMinForwardBalance();
+
     @Description("The time interval at which funds will be forwarded to the bank")
     @Config("org.killbill.bitcoin.forward.interval")
     @Default("1h")

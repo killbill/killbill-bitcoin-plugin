@@ -121,6 +121,11 @@ public class TestBitcoinListener {
             }
 
             @Override
+            public Long getMinForwardBalance() {
+                return null;
+            }
+
+            @Override
             public TimeSpan getForwardBankInterval() {
                 return null;
             }
