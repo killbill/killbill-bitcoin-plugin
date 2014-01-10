@@ -55,6 +55,7 @@ public interface BitcoinConfig {
 
     @Description("The time interval at which funds will be forwarded to the bank")
     @Config("org.killbill.bitcoin.forward.interval")
+    @Default("1h")
     public TimeSpan getForwardBankInterval();
 }
 

@@ -134,17 +134,13 @@ public class TestBitcoinListener {
     public static class MockTransactionmanager extends TransactionManager {
 
         public MockTransactionmanager() {
-            super(null, null, null);
+            super(null, null, null, null);
         }
 
         @Override
-        public boolean isPendingTransaction(final String hash) {
-            return true;
-        }
-
-        @Override
-        public void notifyPaymentSystem(final String hash) {
+        public boolean notifyPaymentSystemIfExists(final String hash) {
             logger.info("Received confirmed transcation " + hash);
+            return true;
         }
     }
 }

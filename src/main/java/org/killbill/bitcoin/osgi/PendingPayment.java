@@ -47,4 +47,38 @@ public class PendingPayment {
     public String getBtcTxHash() {
         return btcTxHash;
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof PendingPayment)) return false;
+
+        PendingPayment that = (PendingPayment) o;
+
+        if (accountId != null ? !accountId.equals(that.accountId) : that.accountId != null) return false;
+        if (btcTxHash != null ? !btcTxHash.equals(that.btcTxHash) : that.btcTxHash != null) return false;
+        if (paymentId != null ? !paymentId.equals(that.paymentId) : that.paymentId != null) return false;
+        if (tenantId != null ? !tenantId.equals(that.tenantId) : that.tenantId != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = paymentId != null ? paymentId.hashCode() : 0;
+        result = 31 * result + (accountId != null ? accountId.hashCode() : 0);
+        result = 31 * result + (tenantId != null ? tenantId.hashCode() : 0);
+        result = 31 * result + (btcTxHash != null ? btcTxHash.hashCode() : 0);
+        return result;
+    }
+
+    @Override
+    public String toString() {
+        return "PendingPayment{" +
+                "paymentId=" + paymentId +
+                ", accountId=" + accountId +
+                ", tenantId=" + tenantId +
+                ", btcTxHash='" + btcTxHash + '\'' +
+                '}';
+    }
 }

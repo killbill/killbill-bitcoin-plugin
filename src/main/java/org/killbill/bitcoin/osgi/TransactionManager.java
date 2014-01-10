@@ -21,34 +21,34 @@ import com.ning.billing.account.api.AccountApiException;
 import com.ning.billing.payment.api.PaymentApiException;
 import com.ning.billing.util.callcontext.CallContext;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillAPI;
+import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
 import org.osgi.service.log.LogService;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 public class TransactionManager {
 
     private final LogService logService;
     private final OSGIKillbillAPI osgiKillbillAPI;
     private final BitcoinConfig config;
+    private final PendingPaymentDao dao;
 
-    /* Map between pending bitcoin transactions and killbill pending payments */
-    private final ConcurrentHashMap<String, PendingPayment> pendingTransactions;
-
-
-    public TransactionManager(final LogService logService, final OSGIKillbillAPI osgiKillbillAPI, final BitcoinConfig config) {
+    public TransactionManager(final LogService logService, final OSGIKillbillAPI osgiKillbillAPI, final PendingPaymentDao dao, final BitcoinConfig config) {
         this.logService = logService;
         this.osgiKillbillAPI = osgiKillbillAPI;
         this.config = config;
-        this.pendingTransactions = new ConcurrentHashMap<String, PendingPayment>();
+        this.dao = dao;
     }
 
     public void registerPendingPayment(final PendingPayment pendingPayment) {
-        pendingTransactions.putIfAbsent(pendingPayment.getBtcTxHash(), pendingPayment);
+        dao.insertPendingPayment(pendingPayment);
     }
 
-    public void notifyPaymentSystem(final String hash) {
+    public boolean notifyPaymentSystemIfExists(final String hash) {
 
-        final PendingPayment pendingPayment = pendingTransactions.get(hash);
+        final PendingPayment pendingPayment = dao.getByBtcTransactionId(hash);
+        if (pendingPayment == null) {
+            return false;
+        }
+
         final CallContext context = new BitcoinCallContext(pendingPayment.getTenantId(), config.getConfidenceBlockDepth());
         try {
             final Account account = osgiKillbillAPI.getAccountUserApi().getAccountById(pendingPayment.getAccountId(), context);
@@ -59,11 +59,8 @@ public class TransactionManager {
             logService.log(LogService.LOG_WARNING, "Failed to notify payment service for bitcoin completion, account =  " + pendingPayment.getAccountId());
         } finally {
             // If we fail we still remove it as retrying would probably end up in the same result.
-            pendingTransactions.remove(hash);
+            dao.removePendingPayment(pendingPayment.getPaymentId());
         }
-    }
-
-    public boolean isPendingTransaction(final String hash) {
-        return pendingTransactions.containsKey(hash);
+        return true;
     }
 }

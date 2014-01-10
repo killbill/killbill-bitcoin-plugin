@@ -18,6 +18,7 @@ package org.killbill.bitcoin.osgi;
 
 import com.ning.killbill.osgi.libs.killbill.KillbillActivatorBase;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
+import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
 import org.osgi.framework.BundleContext;
 import org.skife.config.ConfigurationObjectFactory;
 
@@ -37,7 +38,9 @@ public class BitcoinActivator extends KillbillActivatorBase {
         super.start(context);
 
         final BitcoinConfig config = readBitcoinConfig();
-        this.transactionManager = new TransactionManager(logService, killbillAPI, config);
+
+        final PendingPaymentDao paymentDao = new PendingPaymentDao(dataSource.getDataSource());
+        this.transactionManager = new TransactionManager(logService, killbillAPI, paymentDao, config);
 
         // Register the handler to receive KB events
         this.eventListener = new KillbillListener(logService, killbillAPI, transactionManager, config);
