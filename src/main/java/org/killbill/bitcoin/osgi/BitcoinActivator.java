@@ -21,6 +21,7 @@ import com.ning.billing.payment.plugin.api.PaymentPluginApi;
 import com.ning.killbill.osgi.libs.killbill.KillbillActivatorBase;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
 import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
+import org.killbill.bitcoin.osgi.dao.TransactionLogDao;
 import org.killbill.bitcoin.osgi.http.PaymentRequestServlet;
 import org.killbill.bitcoin.osgi.payment.BitcoinPaymentPluginApi;
 import org.osgi.framework.BundleContext;
@@ -48,6 +49,8 @@ public class BitcoinActivator extends KillbillActivatorBase {
         final BitcoinConfig config = readBitcoinConfig();
 
         final PendingPaymentDao paymentDao = new PendingPaymentDao(dataSource.getDataSource());
+        final TransactionLogDao transactionLogDao = new TransactionLogDao(dataSource.getDataSource());
+
         this.transactionManager = new TransactionManager(logService, killbillAPI, paymentDao, config);
 
         // Register the handler to receive KB events
@@ -62,7 +65,7 @@ public class BitcoinActivator extends KillbillActivatorBase {
         this.asyncInit = new Thread(new RunnableInit());
         asyncInit.start();
 
-        final PaymentRequestServlet paymentRequestServlet = new PaymentRequestServlet(killbillAPI, paymentDao, btcListener);
+        final PaymentRequestServlet paymentRequestServlet = new PaymentRequestServlet(killbillAPI, paymentDao, transactionLogDao, btcListener);
         registerServlet(context, paymentRequestServlet);
     }
 

@@ -55,6 +55,11 @@ public class BitcoinPaymentPluginApi implements PaymentPluginApi {
 
     @Override
     public PaymentInfoPlugin processPayment(UUID kbAccountId, UUID kbPaymentId, UUID kbPaymentMethodId, BigDecimal amount, Currency currency, CallContext context) throws PaymentPluginApiException {
+        return getPaymentInfo(kbAccountId, kbPaymentId, context);
+    }
+
+    @Override
+    public PaymentInfoPlugin getPaymentInfo(UUID kbAccountId, UUID kbPaymentId, TenantContext context) throws PaymentPluginApiException {
         try {
             final Payment payment = killbillAPI.getPaymentApi().getPayment(kbPaymentId, false, context);
             final Invoice invoice = killbillAPI.getInvoiceUserApi().getInvoice(payment.getInvoiceId(), context);
@@ -68,15 +73,10 @@ public class BitcoinPaymentPluginApi implements PaymentPluginApi {
                 }
             }).get();
 
-            return new BitcoinPaymentInfoPlugin(kbPaymentId, amount, currency, new DateTime(DateTimeZone.UTC), customField.getFieldValue());
+            return new BitcoinPaymentInfoPlugin(kbPaymentId, payment.getAmount(), payment.getCurrency(), new DateTime(DateTimeZone.UTC), customField.getFieldValue());
         } catch (BillingExceptionBase e) {
             throw new PaymentPluginApiException("Error getting the custom field", e);
         }
-    }
-
-    @Override
-    public PaymentInfoPlugin getPaymentInfo(UUID kbAccountId, UUID kbPaymentId, TenantContext context) throws PaymentPluginApiException {
-        return null;
     }
 
     @Override

@@ -47,6 +47,7 @@ public interface BitcoinConfig {
 
     @Description("Comma separated list of plugins registered in Kill Bill that deal with BTC transactions")
     @Config("org.killbill.bitcoin.plugins")
+    @Default("killbill-bitcoin")
     public List<String> getKillbillBitcoinPlugins();
 
     @Description("The public hash for the bank on which wallet funds should be forwarded to ")

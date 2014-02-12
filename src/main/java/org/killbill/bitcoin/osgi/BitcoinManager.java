@@ -20,6 +20,7 @@ import com.google.bitcoin.core.AbstractWalletEventListener;
 import com.google.bitcoin.core.ECKey;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.Transaction;
+import com.google.bitcoin.core.TransactionOutput;
 import com.google.bitcoin.core.Wallet;
 import com.google.bitcoin.kits.WalletAppKit;
 import com.google.bitcoin.params.MainNetParams;
@@ -27,12 +28,17 @@ import com.google.bitcoin.params.RegTestParams;
 import com.google.bitcoin.params.TestNet3Params;
 import com.google.bitcoin.utils.BriefLogFormatter;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Predicate;
+import com.google.common.collect.Collections2;
+import com.google.protobuf.ByteString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 public class BitcoinManager {
 
@@ -92,12 +98,33 @@ public class BitcoinManager {
         forwarder.stop();
     }
 
+    public ECKey addKey() {
+        final ECKey newKey = new ECKey();
+        kit.wallet().addKey(newKey);
+        log.info("GENERATED NEW KEY FOR BITCOIN WALLET : " + newKey.toAddress(getNetworkParameters()));
+        return newKey;
+    }
+
     public void addKeyIfMissing() {
         if (config.shouldGenerateKey()) {
-            final ECKey newKey = new ECKey();
-            kit.wallet().addKey(newKey);
-            log.info("GENERATED NEW KEY FOR BITCOIN WALLET : " + newKey.toAddress(getNetworkParameters()));
+            addKey();
         }
+    }
+
+    public Collection<TransactionOutput> isMine(final ByteString transactionBytes) {
+
+        Transaction transaction = new Transaction(getNetworkParameters(), transactionBytes.toByteArray());
+        return Collections2.<TransactionOutput>filter(transaction.getOutputs(), new Predicate<TransactionOutput>() {
+            @Override
+            public boolean apply(TransactionOutput output) {
+                return output.isMine(kit.wallet());
+            }
+        });
+    }
+
+    public Transaction broadcastTransaction(final ByteString transactionBytes) throws ExecutionException, InterruptedException {
+        final Transaction tx = new Transaction(getNetworkParameters(), transactionBytes.toByteArray());
+        return kit.peerGroup().broadcastTransaction(tx).get();
     }
 
     private WalletAppKit initializeKit() {
@@ -109,6 +136,7 @@ public class BitcoinManager {
 
         // Start up a basic app using a class that automates some boilerplate.
         final WalletAppKit tmpKit = new WalletAppKit(params, new File(config.getInstallDirectory()), filePrefix);
+        tmpKit.setUserAgent("killbill", "1.0");
 
         if (params == RegTestParams.get()) {
             // Regression test mode is designed for testing and development only, so there's no public network for it.

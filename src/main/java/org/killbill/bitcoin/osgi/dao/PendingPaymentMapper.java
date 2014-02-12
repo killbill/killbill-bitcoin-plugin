@@ -24,13 +24,13 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.UUID;
 
-public class PendingPaymentMapper implements ResultSetMapper<PendingPayment>{
+public class PendingPaymentMapper implements ResultSetMapper<PendingPayment> {
     @Override
     public PendingPayment map(int index, ResultSet r, StatementContext ctx) throws SQLException {
         final Integer recordId = r.getInt("record_id");
         final UUID paymentId = UUID.fromString(r.getString("payment_id"));
         final UUID accountId = UUID.fromString(r.getString("account_id"));
-        final UUID tenantId = UUID.fromString(r.getString("tenant_id"));
+        final UUID tenantId = r.getString("tenant_id") != null ? UUID.fromString(r.getString("tenant_id")) : null;
         final String btcTxHash = r.getString("btc_tx");
         final String btcContractId = r.getString("btc_contract_id");
         return new PendingPayment(recordId, paymentId, accountId, tenantId, btcTxHash, btcContractId);
