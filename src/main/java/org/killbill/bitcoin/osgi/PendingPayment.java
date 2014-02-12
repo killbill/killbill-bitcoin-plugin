@@ -20,16 +20,28 @@ import java.util.UUID;
 
 public class PendingPayment {
 
+    private final Integer recordId;
     private final UUID paymentId;
     private final UUID accountId;
     private final UUID tenantId;
     private final String btcTxHash;
+    private final String btcContractId;
 
-    public PendingPayment(final UUID paymentId, final UUID accountId, final UUID tenantId, final String btcTxHash) {
+    public PendingPayment(final UUID paymentId, final UUID accountId, final UUID tenantId, String btcTxHash, final String btcContractId) {
+        this(-1, paymentId, accountId, tenantId, btcTxHash, btcContractId);
+    }
+
+    public PendingPayment(final Integer recordId, final UUID paymentId, final UUID accountId, final UUID tenantId, String btcTxHash, final String btcContractId) {
+        this.recordId = recordId;
         this.paymentId = paymentId;
         this.accountId = accountId;
         this.tenantId = tenantId;
         this.btcTxHash = btcTxHash;
+        this.btcContractId = btcContractId;
+    }
+
+    public Integer getRecordId() {
+        return recordId;
     }
 
     public UUID getPaymentId() {
@@ -48,6 +60,22 @@ public class PendingPayment {
         return btcTxHash;
     }
 
+    public String getBtcContractId() {
+        return btcContractId;
+    }
+
+    @Override
+    public String toString() {
+        return "PendingPayment{" +
+                "recordId=" + recordId +
+                ", paymentId=" + paymentId +
+                ", accountId=" + accountId +
+                ", tenantId=" + tenantId +
+                ", btcTxHash='" + btcTxHash + '\'' +
+                ", btcContractId='" + btcContractId + '\'' +
+                '}';
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
@@ -56,8 +84,11 @@ public class PendingPayment {
         PendingPayment that = (PendingPayment) o;
 
         if (accountId != null ? !accountId.equals(that.accountId) : that.accountId != null) return false;
+        if (btcContractId != null ? !btcContractId.equals(that.btcContractId) : that.btcContractId != null)
+            return false;
         if (btcTxHash != null ? !btcTxHash.equals(that.btcTxHash) : that.btcTxHash != null) return false;
         if (paymentId != null ? !paymentId.equals(that.paymentId) : that.paymentId != null) return false;
+        if (recordId != null ? !recordId.equals(that.recordId) : that.recordId != null) return false;
         if (tenantId != null ? !tenantId.equals(that.tenantId) : that.tenantId != null) return false;
 
         return true;
@@ -65,20 +96,12 @@ public class PendingPayment {
 
     @Override
     public int hashCode() {
-        int result = paymentId != null ? paymentId.hashCode() : 0;
+        int result = recordId != null ? recordId.hashCode() : 0;
+        result = 31 * result + (paymentId != null ? paymentId.hashCode() : 0);
         result = 31 * result + (accountId != null ? accountId.hashCode() : 0);
         result = 31 * result + (tenantId != null ? tenantId.hashCode() : 0);
         result = 31 * result + (btcTxHash != null ? btcTxHash.hashCode() : 0);
+        result = 31 * result + (btcContractId != null ? btcContractId.hashCode() : 0);
         return result;
-    }
-
-    @Override
-    public String toString() {
-        return "PendingPayment{" +
-                "paymentId=" + paymentId +
-                ", accountId=" + accountId +
-                ", tenantId=" + tenantId +
-                ", btcTxHash='" + btcTxHash + '\'' +
-                '}';
     }
 }

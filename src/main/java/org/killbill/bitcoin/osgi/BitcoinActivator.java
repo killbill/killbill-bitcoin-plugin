@@ -16,12 +16,20 @@
 
 package org.killbill.bitcoin.osgi;
 
+import com.ning.billing.osgi.api.OSGIPluginProperties;
+import com.ning.billing.payment.plugin.api.PaymentPluginApi;
 import com.ning.killbill.osgi.libs.killbill.KillbillActivatorBase;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
 import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
+import org.killbill.bitcoin.osgi.http.PaymentRequestServlet;
+import org.killbill.bitcoin.osgi.payment.BitcoinPaymentPluginApi;
 import org.osgi.framework.BundleContext;
 import org.skife.config.ConfigurationObjectFactory;
 
+import javax.servlet.Servlet;
+import javax.servlet.http.HttpServlet;
+import java.util.Dictionary;
+import java.util.Hashtable;
 import java.util.Properties;
 
 public class BitcoinActivator extends KillbillActivatorBase {
@@ -46,10 +54,16 @@ public class BitcoinActivator extends KillbillActivatorBase {
         this.eventListener = new KillbillListener(logService, killbillAPI, transactionManager, config);
         dispatcher.registerEventHandler(eventListener);
 
+        // Register the payment plugin API
+        registerPaymentPluginApi(context, new BitcoinPaymentPluginApi(killbillAPI));
+
         // Starts thread that will initialize btc library-- fetch latest blocks
         this.btcListener = new BitcoinManager(transactionManager, config);
         this.asyncInit = new Thread(new RunnableInit());
         asyncInit.start();
+
+        final PaymentRequestServlet paymentRequestServlet = new PaymentRequestServlet(killbillAPI, paymentDao, btcListener);
+        registerServlet(context, paymentRequestServlet);
     }
 
     private BitcoinConfig readBitcoinConfig() {
@@ -74,5 +88,17 @@ public class BitcoinActivator extends KillbillActivatorBase {
     @Override
     public OSGIKillbillEventHandler getOSGIKillbillEventHandler() {
         return eventListener;
+    }
+
+    private void registerPaymentPluginApi(final BundleContext context, final PaymentPluginApi api) {
+        final Dictionary props = new Hashtable();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, PaymentPluginApi.class, api, props);
+    }
+
+    private void registerServlet(final BundleContext context, final HttpServlet servlet) {
+        final Hashtable<String, String> props = new Hashtable<String, String>();
+        props.put(OSGIPluginProperties.PLUGIN_NAME_PROP, PLUGIN_NAME);
+        registrar.registerService(context, Servlet.class, servlet, props);
     }
 }

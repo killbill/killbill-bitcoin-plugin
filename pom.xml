@@ -20,7 +20,7 @@
     <parent>
         <artifactId>killbill-oss-parent</artifactId>
         <groupId>com.ning.billing</groupId>
-        <version>0.5.12</version>
+        <version>0.5.24</version>
     </parent>
     <artifactId>killbill-bitcoin-bundle</artifactId>
     <name>Kill Bill OSGI bitcoin bundle</name>
@@ -41,24 +41,21 @@
         <dependency>
             <groupId>com.google</groupId>
             <artifactId>bitcoinj</artifactId>
-            <version>0.10.3</version>
+            <version>0.12-SNAPSHOT</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>13.0.1</version>
             <scope>compile</scope>
         </dependency>
         <dependency>
             <groupId>org.skife.config</groupId>
             <artifactId>config-magic</artifactId>
-            <version>0.14</version>
         </dependency>
         <dependency>
             <groupId>org.jdbi</groupId>
             <artifactId>jdbi</artifactId>
-            <version>2.48</version>
         </dependency>
         <dependency>
             <groupId>com.ning.billing</groupId>
@@ -68,6 +65,11 @@
         <dependency>
             <groupId>com.ning.billing.plugin</groupId>
             <artifactId>killbill-plugin-api-notification</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.ning.billing.plugin</groupId>
+            <artifactId>killbill-plugin-api-payment</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>

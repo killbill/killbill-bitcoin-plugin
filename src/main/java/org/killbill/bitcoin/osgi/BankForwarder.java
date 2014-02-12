@@ -18,6 +18,7 @@ package org.killbill.bitcoin.osgi;
 
 import com.google.bitcoin.core.Address;
 import com.google.bitcoin.core.AddressFormatException;
+import com.google.bitcoin.core.InsufficientMoneyException;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.Wallet;
 import org.slf4j.Logger;
@@ -101,6 +102,8 @@ public class BankForwarder {
                     log.info("Emptying wallet txHash = " + result.tx.getHash() + ",  tx = " + result.tx.toString());
                 } catch (AddressFormatException e) {
                     log.warn("Failed to empty wallet to target address " + bankHash, e);
+                } catch (InsufficientMoneyException e) {
+                    log.warn("Not enough money!", e);
                 }
             }
         }) : null;

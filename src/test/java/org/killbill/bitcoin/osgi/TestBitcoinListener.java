@@ -17,6 +17,7 @@
 package org.killbill.bitcoin.osgi;
 
 import com.google.bitcoin.core.ECKey;
+import com.google.bitcoin.core.InsufficientMoneyException;
 import com.google.bitcoin.core.NetworkParameters;
 import com.google.bitcoin.core.Wallet;
 import org.skife.config.TimeSpan;
@@ -75,7 +76,7 @@ public class TestBitcoinListener {
         logger.info("Added new key " + newKey.toAddress(params));
     }
 
-    public void makePaymentTo() {
+    public void makePaymentTo() throws InsufficientMoneyException {
         // Add new key
         final ECKey newKey = new ECKey();
         bitcoinListener.getKit().wallet().addKey(newKey);
@@ -87,7 +88,7 @@ public class TestBitcoinListener {
         bitcoinListener.getKit().wallet().sendCoins(req);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InsufficientMoneyException {
 
         final BitcoinConfig config = new BitcoinConfig() {
             @Override

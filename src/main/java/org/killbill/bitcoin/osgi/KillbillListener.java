@@ -16,7 +16,6 @@
 
 package org.killbill.bitcoin.osgi;
 
-import com.google.bitcoin.core.Sha256Hash;
 import com.google.common.base.Joiner;
 import com.google.common.collect.ImmutableList;
 import com.ning.billing.notification.plugin.api.ExtBusEvent;
@@ -93,9 +92,11 @@ public class KillbillListener implements OSGIKillbillEventHandler {
                 return;
             }
 
-            log.info("KillbillListener registering payment " + paymentEvent.getObjectId() + ", txHash = " + payment.getPaymentInfoPlugin().getFirstPaymentReferenceId());
+            final String bitcoinTransactionId = payment.getPaymentInfoPlugin().getFirstPaymentReferenceId();
+            final String bitcoinContractId = payment.getPaymentInfoPlugin().getSecondPaymentReferenceId();
 
-            transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), payment.getPaymentInfoPlugin().getFirstPaymentReferenceId()));
+            log.info("KillbillListener registering payment " + paymentEvent.getObjectId() + ", txHash = " + bitcoinTransactionId + ", contractId = " + bitcoinContractId);
+            transactionManager.registerPendingPayment(new PendingPayment(paymentEvent.getObjectId(), paymentEvent.getAccountId(), paymentEvent.getTenantId(), bitcoinTransactionId, bitcoinContractId));
         } catch (PaymentApiException e) {
             logService.log(LogService.LOG_WARNING, "Unable to retrieve payment " + paymentEvent.getObjectId(), e);
         }

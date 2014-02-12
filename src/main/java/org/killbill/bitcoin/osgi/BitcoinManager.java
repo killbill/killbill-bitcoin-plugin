@@ -31,6 +31,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.File;
+import java.util.LinkedList;
+import java.util.List;
 
 public class BitcoinManager {
 
@@ -114,6 +116,15 @@ public class BitcoinManager {
             tmpKit.connectToLocalHost();
         }
         return tmpKit;
+    }
+
+    public List<String> getKeys() {
+        final List<String> keys = new LinkedList<String>();
+        for (final ECKey ecKey : kit.wallet().getKeys()) {
+            // TODO PIERRE
+            keys.add(ecKey.toAddress(getNetworkParameters()).toString());
+        }
+        return keys;
     }
 
     @VisibleForTesting

@@ -24,7 +24,7 @@ public class BitcoinTenantContext implements TenantContext {
 
     private final UUID tenantId;
 
-    BitcoinTenantContext(final UUID tenantId) {
+    public BitcoinTenantContext(final UUID tenantId) {
         this.tenantId = tenantId;
     }
 

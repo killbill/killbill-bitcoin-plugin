@@ -34,20 +34,21 @@ public class TestPendingPaymentDao {
 
     @Test(groups = "sql")
     public void testbasic() {
+        final String bitcoinTransactionId = UUID.randomUUID().toString();
 
-        final PendingPayment p1 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "12345");
+        final PendingPayment p1 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), bitcoinTransactionId, "12345");
         dao.insertPendingPayment(p1);
 
         final PendingPayment p1Get = dao.getByBtcTransactionId(p1.getBtcTxHash());
         assertEquals(p1Get, p1);
 
-        final PendingPayment p2 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "23456");
+        final PendingPayment p2 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), bitcoinTransactionId, "23456");
         dao.insertPendingPayment(p2);
 
         final PendingPayment p2Get = dao.getByBtcTransactionId(p2.getBtcTxHash());
         assertEquals(p2Get, p2);
 
-        final PendingPayment p3 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "34567");
+        final PendingPayment p3 = new PendingPayment(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), bitcoinTransactionId, "34567");
         dao.insertPendingPayment(p3);
 
         final List<PendingPayment> all1 = dao.getAllPendingPayments();

@@ -27,13 +27,21 @@ import java.util.UUID;
 public class BitcoinCallContext extends BitcoinTenantContext implements CallContext {
 
     private final DateTime now;
-    private final int confidenceDepth;
+    private final String reasonCode;
+    private final String comments;
 
     public BitcoinCallContext(final UUID tenantId, int confidenceDepth) {
-
         super(tenantId);
         this.now = new DateTime(DateTimeZone.UTC);
-        this.confidenceDepth = confidenceDepth;
+        this.reasonCode = "Chain validation";
+        this.comments = "Bitcoin confidence: " + confidenceDepth;
+    }
+
+    public BitcoinCallContext(final UUID tenantId, String reasonCode, String comments) {
+        super(tenantId);
+        this.now = new DateTime(DateTimeZone.UTC);
+        this.reasonCode = reasonCode;
+        this.comments = comments;
     }
 
     @Override
@@ -58,12 +66,12 @@ public class BitcoinCallContext extends BitcoinTenantContext implements CallCont
 
     @Override
     public String getReasonCode() {
-        return "Chain validation";
+        return reasonCode;
     }
 
     @Override
     public String getComments() {
-        return "Bitcoin confidence: " + confidenceDepth;
+        return comments;
     }
 
     @Override
