@@ -20,6 +20,7 @@ import com.ning.billing.osgi.api.OSGIPluginProperties;
 import com.ning.billing.payment.plugin.api.PaymentPluginApi;
 import com.ning.killbill.osgi.libs.killbill.KillbillActivatorBase;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillEventDispatcher.OSGIKillbillEventHandler;
+import org.killbill.bitcoin.osgi.dao.ContractDao;
 import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
 import org.killbill.bitcoin.osgi.dao.TransactionLogDao;
 import org.killbill.bitcoin.osgi.http.PaymentRequestServlet;
@@ -48,6 +49,7 @@ public class BitcoinActivator extends KillbillActivatorBase {
 
         final BitcoinConfig config = readBitcoinConfig();
 
+        final ContractDao contractDao = new ContractDao(dataSource.getDataSource());
         final PendingPaymentDao paymentDao = new PendingPaymentDao(dataSource.getDataSource());
         final TransactionLogDao transactionLogDao = new TransactionLogDao(dataSource.getDataSource());
 
@@ -65,7 +67,7 @@ public class BitcoinActivator extends KillbillActivatorBase {
         this.asyncInit = new Thread(new RunnableInit());
         asyncInit.start();
 
-        final PaymentRequestServlet paymentRequestServlet = new PaymentRequestServlet(killbillAPI, paymentDao, transactionLogDao, btcListener);
+        final PaymentRequestServlet paymentRequestServlet = new PaymentRequestServlet(killbillAPI, contractDao, paymentDao, transactionLogDao, btcListener);
         registerServlet(context, paymentRequestServlet);
     }
 

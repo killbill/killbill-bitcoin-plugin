@@ -21,8 +21,10 @@ import com.google.bitcoin.core.Transaction;
 import com.google.bitcoin.script.ScriptBuilder;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
-import com.google.common.collect.ImmutableList;
+import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
 import com.google.protobuf.ByteString;
 import com.ning.billing.BillingExceptionBase;
 import com.ning.billing.ObjectType;
@@ -39,47 +41,58 @@ import com.ning.billing.catalog.api.PlanPhase;
 import com.ning.billing.catalog.api.PlanPhaseSpecifier;
 import com.ning.billing.entitlement.api.Entitlement;
 import com.ning.billing.entitlement.api.EntitlementApiException;
+import com.ning.billing.entitlement.api.Subscription;
+import com.ning.billing.entitlement.api.SubscriptionApiException;
+import com.ning.billing.entitlement.api.SubscriptionBundle;
+import com.ning.billing.entitlement.api.SubscriptionEvent;
+import com.ning.billing.entitlement.api.SubscriptionEventType;
 import com.ning.billing.payment.api.Payment;
 import com.ning.billing.payment.api.PaymentApiException;
-import com.ning.billing.payment.api.PaymentMethod;
 import com.ning.billing.tenant.api.Tenant;
 import com.ning.billing.util.api.CustomFieldApiException;
 import com.ning.billing.util.api.TagApiException;
 import com.ning.billing.util.callcontext.CallContext;
 import com.ning.billing.util.callcontext.TenantContext;
-import com.ning.billing.util.customfield.CustomField;
-import com.ning.billing.util.tag.ControlTagType;
 import com.ning.killbill.osgi.libs.killbill.OSGIKillbillAPI;
 import org.bitcoin.protocols.payments.Protos;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.LocalDate;
 import org.killbill.bitcoin.osgi.BitcoinActivator;
 import org.killbill.bitcoin.osgi.BitcoinCallContext;
 import org.killbill.bitcoin.osgi.BitcoinManager;
+import org.killbill.bitcoin.osgi.BitcoinSubscriptionId;
+import org.killbill.bitcoin.osgi.Contract;
 import org.killbill.bitcoin.osgi.PendingPayment;
 import org.killbill.bitcoin.osgi.TransactionLog;
+import org.killbill.bitcoin.osgi.dao.ContractDao;
 import org.killbill.bitcoin.osgi.dao.PendingPaymentDao;
 import org.killbill.bitcoin.osgi.dao.TransactionLogDao;
-import org.killbill.bitcoin.osgi.payment.BitcoinPaymentPluginApi;
 
+import javax.annotation.Nullable;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
 public class PaymentRequestServlet extends HttpServlet {
 
+    // TODO configurable (multi-tenant?)
+    public static final String DEFAULT_MERCHANT_ID = "org.killbill";
 
     private final static String BTC_SERVLET_BASE_PATH = "/plugins/" + BitcoinActivator.PLUGIN_NAME;
 
     private final static String BTC_SUBSCRIPTION_CONTRACT = "/contract";
     private final static String BTC_SUBSCRIPTION_POLLING = "/polling";
     private final static String BTC_SUBSCRIPTION_PAYMENT = "/payment";
+    private final static String BTC_WALLET = "/wallet";
 
     private final static String BTC_SUBSCRIPTION_CONTRACT_PATH = BTC_SERVLET_BASE_PATH + BTC_SUBSCRIPTION_CONTRACT;
     private final static String BTC_SUBSCRIPTION_POLLING_PATH = BTC_SERVLET_BASE_PATH + BTC_SUBSCRIPTION_POLLING;
@@ -92,12 +105,14 @@ public class PaymentRequestServlet extends HttpServlet {
 
 
     private final OSGIKillbillAPI killbillAPI;
+    private final ContractDao contractDao;
     private final PendingPaymentDao paymentDao;
     private final BitcoinManager bitcoinManager;
     private final TransactionLogDao transactionLogDao;
 
-    public PaymentRequestServlet(OSGIKillbillAPI killbillAPI, PendingPaymentDao paymentDao, TransactionLogDao transactionLogDao, BitcoinManager bitcoinManager) {
+    public PaymentRequestServlet(OSGIKillbillAPI killbillAPI, ContractDao contractDao, PendingPaymentDao paymentDao, TransactionLogDao transactionLogDao, BitcoinManager bitcoinManager) {
         this.killbillAPI = killbillAPI;
+        this.contractDao = contractDao;
         this.paymentDao = paymentDao;
         this.transactionLogDao = transactionLogDao;
         this.bitcoinManager = bitcoinManager;
@@ -106,6 +121,29 @@ public class PaymentRequestServlet extends HttpServlet {
     @Override
     protected void doGet(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException {
 
+        try {
+            final String pathInfo = req.getPathInfo();
+            if (pathInfo.equals(BTC_SUBSCRIPTION_CONTRACT)) {
+                createContract(req, resp);
+            } else if (pathInfo.equals(BTC_SUBSCRIPTION_POLLING)) {
+                pollForPayment(req, resp);
+            } else if (pathInfo.equals(BTC_WALLET)) {
+                dumpWallet(req, resp);
+            } else {
+                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            }
+        } catch (BillingExceptionBase e) {
+            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+        }
+    }
+
+    private void dumpWallet(HttpServletRequest req, HttpServletResponse resp) throws IOException {
+        resp.getOutputStream().write(bitcoinManager.walletAsString().getBytes("UTF-8"));
+        resp.setStatus(HttpServletResponse.SC_OK);
+    }
+
+    @Override
+    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         try {
             final String pathInfo = req.getPathInfo();
             if (pathInfo.equals(BTC_SUBSCRIPTION_PAYMENT)) {
@@ -122,22 +160,6 @@ public class PaymentRequestServlet extends HttpServlet {
         }
     }
 
-    @Override
-    protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
-        try {
-            final String pathInfo = req.getPathInfo();
-            if (pathInfo.equals(BTC_SUBSCRIPTION_CONTRACT)) {
-                createSubscriptionContract(req, resp);
-            } else if (pathInfo.equals(BTC_SUBSCRIPTION_POLLING)) {
-                pollForPayment(req, resp);
-            } else {
-                resp.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            }
-        } catch (BillingExceptionBase e) {
-            resp.setStatus(HttpServletResponse.SC_BAD_REQUEST);
-        }
-    }
-
 
     private void createPayment(HttpServletRequest req, HttpServletResponse resp) throws IOException, BillingExceptionBase, ExecutionException, InterruptedException {
         final Protos.Payment payment = Protos.Payment.parseFrom(req.getInputStream());
@@ -147,7 +169,12 @@ public class PaymentRequestServlet extends HttpServlet {
 
         final List<PendingPayment> pendingPayments = paymentDao.getByBtcContractId(contractId);
         // For now, we take the first one
-        final PendingPayment pendingPayment = pendingPayments.get(0);
+        final PendingPayment pendingPayment = pendingPayments.size() > 0 ? pendingPayments.get(0) : null;
+        if (pendingPayment == null) {
+            // Nothing to pay
+            resp.setStatus(HttpServletResponse.SC_GONE);
+            return;
+        }
 
         transactionLogDao.insertTransactionLog(new TransactionLog(new DateTime(DateTimeZone.UTC), "createPayment", pendingPayment.getAccountId(), null, contractId));
         final List<ByteString> transactionList = payment.getTransactionsList();
@@ -155,6 +182,8 @@ public class PaymentRequestServlet extends HttpServlet {
         //Preconditions.checkState(outputs.size() == 1, "Expecting one");
 
         final Transaction broadcastedTransaction = bitcoinManager.broadcastTransaction(transactionList.get(0));
+
+        bitcoinManager.commitTransaction(broadcastedTransaction);
 
         // PIERRE TODO We cannot solely rely on transactionId because of Malleability issues -- https://en.bitcoin.it/wiki/Transaction_Malleability
         // We should really track transaction with inputs, outputs -- which contain the address
@@ -169,46 +198,103 @@ public class PaymentRequestServlet extends HttpServlet {
         resp.setStatus(HttpServletResponse.SC_OK);
     }
 
-    private void createSubscriptionContract(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException, CatalogApiException, AccountApiException, PaymentApiException, EntitlementApiException, CustomFieldApiException, TagApiException {
+    private void createContract(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException, CatalogApiException, AccountApiException, PaymentApiException, EntitlementApiException, CustomFieldApiException, TagApiException, SubscriptionApiException {
 
-        final String network = Objects.firstNonNull(req.getParameter("network"), "main");
-        final String accountIdStr = req.getParameter("accountId");
-        final String product = req.getParameter("product");
-        final String billingPeriod = Objects.firstNonNull(req.getParameter("billingPeriod"), "MONTHLY");
-        final String phaseName = req.getParameter("phaseName");
-        final String priceList = Objects.firstNonNull(req.getParameter("priceList"), "DEFAULT");
-        final String externalKey = Objects.firstNonNull(req.getParameter("externalKey"), UUID.randomUUID().toString());
+        final String networkArg = Objects.firstNonNull(req.getParameter("network"), "main");
+        final String contractIdArg = req.getParameter("contractId");
 
-        final DateTime now = new DateTime(DateTimeZone.UTC);
+        // TODO The request parameter should be a subscriptionId, but the wallet should be given btcSubscriptionId.
+        final String bitcoinSubscriptionIdArg = req.getParameter("subscriptionId");
+
+        final DateTime nowDateTime = new DateTime(DateTimeZone.UTC);
+        final LocalDate now = new LocalDate(nowDateTime);
         final CallContext callContext = createCallContext(req, resp);
-        final UUID accountId = UUID.fromString(accountIdStr);
-        final UUID contractId = UUID.randomUUID();
 
-        final Account account = killbillAPI.getAccountUserApi().getAccountById(accountId, callContext);
-        final UUID paymentMethodId;
-        if (account.getPaymentMethodId() != null) {
-            final PaymentMethod defaultPaymentMethod = killbillAPI.getPaymentApi().getPaymentMethodById(account.getPaymentMethodId(), false, false, callContext);
-            Preconditions.checkState(defaultPaymentMethod.getPluginName().equals(BitcoinActivator.PLUGIN_NAME));
-            paymentMethodId = account.getPaymentMethodId();
-        } else {
-            paymentMethodId = killbillAPI.getPaymentApi().addPaymentMethod(BitcoinActivator.PLUGIN_NAME, account, true, null, callContext);
+        final BitcoinSubscriptionId bitcoinSubscriptionId = BitcoinSubscriptionId.fromString(bitcoinSubscriptionIdArg);
+        // TODO Works only for subscription aligned - exercise for the reader for bundle / account aligned
+        // Depending on the alignment, the contracts should contain one contract for each entity that can end up in one invoice.
+        // For example, all subscriptions on a given bundle, or all account aligned subscriptions
+        Preconditions.checkState(ObjectType.SUBSCRIPTION.equals(bitcoinSubscriptionId.getAlignment()));
+
+        final UUID subscriptionId = bitcoinSubscriptionId.getEntityId();
+        final Subscription subscription = killbillAPI.getSubscriptionApi().getSubscriptionForEntitlementId(subscriptionId, callContext);
+        final SubscriptionBundle bundle = killbillAPI.getSubscriptionApi().getSubscriptionBundle(subscription.getBundleId(), callContext);
+
+        SubscriptionEvent currentEvent = null;
+        for (final SubscriptionEvent subscriptionEvent : Lists.reverse(bundle.getTimeline().getSubscriptionEvents())) {
+            if (subscriptionEvent.getEntitlementId().equals(subscription.getId()) &&
+                    subscriptionEvent.getEffectiveDate().compareTo(now) <= 0 &&
+                    (SubscriptionEventType.START_BILLING.equals(subscriptionEvent.getSubscriptionEventType()) || SubscriptionEventType.CHANGE.equals(subscriptionEvent.getSubscriptionEventType()))) {
+                currentEvent = subscriptionEvent;
+                break;
+            }
         }
 
-        final Plan plan = getCatalog(callContext).findPlan(product, BillingPeriod.valueOf(billingPeriod), priceList, now, now);
+        final SubscriptionEvent futureChangeOrCancelEvent = Iterables.<SubscriptionEvent>tryFind(bundle.getTimeline().getSubscriptionEvents(), new Predicate<SubscriptionEvent>() {
+            @Override
+            public boolean apply(SubscriptionEvent input) {
+                return input.getEntitlementId().equals(subscription.getId()) &&
+                        (SubscriptionEventType.CHANGE.equals(input.getSubscriptionEventType()) || SubscriptionEventType.STOP_BILLING.equals(input.getSubscriptionEventType())) &&
+                        // TODO clock
+                        input.getEffectiveDate().compareTo(new LocalDate(new DateTime(DateTimeZone.UTC))) > 0;
+            }
+        }).orNull();
 
-        final long maxPayment = getMaxPaymentAmount(plan);
-        Protos.RecurringPaymentDetails recurringPaymentDetails = Protos.RecurringPaymentDetails.newBuilder()
-                .setPollingUrl(createURL(req, BTC_SUBSCRIPTION_POLLING_PATH, ImmutableMap.<String, String>of("contractId", contractId.toString(), "network", network, "accountId", accountIdStr)))
-                .setPaymentFrequencyType(getPaymentFrequencyType(plan.getBillingPeriod()))
+        final boolean isCancelled = (subscription.getBillingEndDate() != null && subscription.getBillingEndDate().compareTo(new LocalDate(now)) <= 0);
+        final long maxPayment = isCancelled ? 0L : getMaxPaymentAmount(currentEvent.getNextPlan());
+        final Protos.PaymentFrequencyType frequencyType = isCancelled ? null : getPaymentFrequencyType(subscription.getLastActivePlan().getBillingPeriod());
+
+        final List<Protos.RecurringPaymentContract> contracts = new LinkedList<Protos.RecurringPaymentContract>();
+
+        final UUID contractId = contractIdArg == null ? UUID.randomUUID() : UUID.fromString(contractIdArg);
+        Protos.RecurringPaymentContract.Builder currentContractBuilder = Protos.RecurringPaymentContract.newBuilder()
+                .setContractId(uuidToByteString(contractId))
+                .setStarts(localDateToMillis(currentEvent.getEffectiveDate()))
+                .setPollingUrl(createURL(req, BTC_SUBSCRIPTION_POLLING_PATH, ImmutableMap.<String, String>of("merchantId", DEFAULT_MERCHANT_ID, "subscriptionId", bitcoinSubscriptionId.toString(), "contractId", contractId.toString(), "network", networkArg)))
+                .setPaymentFrequencyType(frequencyType)
                 .setMaxPaymentPerPeriod(maxPayment)
-                .setMaxPaymentAmount(maxPayment)
+                .setMaxPaymentAmount(maxPayment);
+
+        if (futureChangeOrCancelEvent != null) {
+            currentContractBuilder.setEnds(localDateToMillis(futureChangeOrCancelEvent.getEffectiveDate()));
+
+            // TODO check it may exist!
+            final UUID nextContractId = UUID.randomUUID();
+            transactionLogDao.insertTransactionLog(new TransactionLog(new DateTime(DateTimeZone.UTC), "createContract", subscription.getAccountId(), subscription.getId(), nextContractId));
+
+            final long nextMaxAmount = getMaxPaymentAmount(futureChangeOrCancelEvent.getNextPlan());
+            Protos.RecurringPaymentContract.Builder nextContractBuilder = Protos.RecurringPaymentContract.newBuilder()
+                    .setContractId(uuidToByteString(nextContractId))
+                    .setStarts(localDateToMillis(futureChangeOrCancelEvent.getEffectiveDate()))
+                    .setEnds(localDateToMillis(subscription.getBillingEndDate()))
+                    .setPollingUrl(createURL(req, BTC_SUBSCRIPTION_POLLING_PATH, ImmutableMap.<String, String>of("merchantId", DEFAULT_MERCHANT_ID, "subscriptionId", bitcoinSubscriptionId.toString(), "contractId", nextContractId.toString(), "network", networkArg)))
+                    .setMaxPaymentPerPeriod(nextMaxAmount)
+                    .setMaxPaymentAmount(nextMaxAmount);
+            if (futureChangeOrCancelEvent.getNextPlan() != null) {
+                nextContractBuilder.setPaymentFrequencyType(getPaymentFrequencyType(futureChangeOrCancelEvent.getNextPlan().getBillingPeriod()));
+            }
+
+            contracts.add(nextContractBuilder.build());
+        }
+
+        contracts.add(currentContractBuilder.build());
+
+        if (contractIdArg == null) {
+            contractDao.insertContract(new Contract(new BitcoinSubscriptionId(ObjectType.SUBSCRIPTION, subscriptionId), currentEvent.getEffectiveDate(), futureChangeOrCancelEvent == null ? null : futureChangeOrCancelEvent.getEffectiveDate(), contractId));
+            transactionLogDao.insertTransactionLog(new TransactionLog(new DateTime(DateTimeZone.UTC), "createContract", subscription.getAccountId(), subscription.getId(), contractId));
+        }
+
+        Protos.RecurringPaymentDetails recurringPaymentDetails = Protos.RecurringPaymentDetails.newBuilder()
+                .setMerchantId(DEFAULT_MERCHANT_ID)
+                .setSubscriptionId(uuidToByteString(subscription.getId()))
+                .addAllContracts(contracts)
                 .build();
 
         Protos.PaymentDetails details = Protos.PaymentDetails.newBuilder()
-                .setNetwork(network)
-                .setTime(now.getMillis())
-                .setExpires(now.plusDays(1).getMillis())
-                .setMemo("Kill Bill subscription " + plan.getName())
+                .setNetwork(networkArg)
+                .setTime(nowDateTime.getMillis())
+                .setExpires(nowDateTime.plusDays(1).getMillis())
+                .setMemo("Kill Bill subscription " + subscription.getLastActivePlan().getName())
                 .setPaymentUrl(createURL(req, BTC_SUBSCRIPTION_PAYMENT_PATH))
                 .setMerchantData(ByteString.copyFrom(contractId.toString().getBytes()))
                 .setSerializedRecurringPaymentDetails(recurringPaymentDetails.toByteString())
@@ -222,13 +308,18 @@ public class PaymentRequestServlet extends HttpServlet {
                         //.setSignature(null)
                 .build();
 
-        // Create subscription last so that we don't invoice customer if previous steps failed part way through.
-        final UUID subscriptionId = createSubscription(account, contractId, plan, externalKey, priceList, now, callContext);
-        transactionLogDao.insertTransactionLog(new TransactionLog(new DateTime(DateTimeZone.UTC), "createSubscriptionContract", accountId, subscriptionId, contractId));
 
         result.writeTo(resp.getOutputStream());
         resp.setContentType("application/bitcoin-paymentrequest");
         resp.setStatus(HttpServletResponse.SC_OK);
+    }
+
+    private long localDateToMillis(LocalDate localDate) {
+        return localDate.toDateTimeAtStartOfDay(DateTimeZone.UTC).getMillis();
+    }
+
+    private ByteString uuidToByteString(UUID id) throws UnsupportedEncodingException {
+        return ByteString.copyFrom(id.toString(), "UTF-8");
     }
 
     private void pollForPayment(final HttpServletRequest req, final HttpServletResponse resp) throws ServletException, IOException, CatalogApiException, PaymentApiException {
@@ -313,7 +404,10 @@ public class PaymentRequestServlet extends HttpServlet {
         }
     }
 
-    private long getMaxPaymentAmount(final Plan plan) throws CatalogApiException {
+    private long getMaxPaymentAmount(@Nullable final Plan plan) throws CatalogApiException {
+        if (plan == null) {
+            return 0;
+        }
 
         BigDecimal maxPaymentAmount = BigDecimal.ZERO;
         for (PlanPhase ph : plan.getAllPhases()) {
@@ -345,52 +439,10 @@ public class PaymentRequestServlet extends HttpServlet {
         return catalogUserApi.getCatalog(null, context);
     }
 
-    private UUID createSubscription(final Account account, final UUID contractId, final Plan plan, final String externalKey, final String priceList, final DateTime now, final CallContext callContext) throws EntitlementApiException, TagApiException, CustomFieldApiException {
+    private UUID createSubscription(final Account account, final Plan plan, final String externalKey, final String priceList, final PhaseType phaseType, final DateTime now, final CallContext callContext) throws EntitlementApiException, TagApiException, CustomFieldApiException {
 
-        killbillAPI.getTagUserApi().addTag(account.getId(), ObjectType.ACCOUNT, ControlTagType.AUTO_PAY_OFF.getId(), callContext);
-
-        final PlanPhaseSpecifier spec = new PlanPhaseSpecifier(plan.getProduct().getName(), plan.getProduct().getCategory(), plan.getBillingPeriod(), priceList, PhaseType.EVERGREEN);
+        final PlanPhaseSpecifier spec = new PlanPhaseSpecifier(plan.getProduct().getName(), plan.getProduct().getCategory(), plan.getBillingPeriod(), priceList, phaseType);
         final Entitlement entitlement = killbillAPI.getEntitlementApi().createBaseEntitlement(account.getId(), spec, externalKey, now.toLocalDate(), callContext);
-
-        killbillAPI.getCustomFieldUserApi().addCustomFields(ImmutableList.<CustomField>of(new CustomField() {
-            @Override
-            public UUID getObjectId() {
-                return entitlement.getId();
-            }
-
-            @Override
-            public ObjectType getObjectType() {
-                return ObjectType.SUBSCRIPTION;
-            }
-
-            @Override
-            public String getFieldName() {
-                return BitcoinPaymentPluginApi.CONTRACT_FIELD_NAME;
-            }
-
-            @Override
-            public String getFieldValue() {
-                return contractId.toString();
-            }
-
-            @Override
-            public UUID getId() {
-                return UUID.randomUUID();
-            }
-
-            @Override
-            public DateTime getCreatedDate() {
-                return now;
-            }
-
-            @Override
-            public DateTime getUpdatedDate() {
-                return now;
-            }
-        }), callContext);
-
-        killbillAPI.getTagUserApi().removeTag(account.getId(), ObjectType.ACCOUNT, ControlTagType.AUTO_PAY_OFF.getId(), callContext);
-
         return entitlement.getId();
     }
 }

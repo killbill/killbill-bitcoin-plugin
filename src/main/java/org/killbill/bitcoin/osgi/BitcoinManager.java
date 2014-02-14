@@ -59,7 +59,6 @@ public class BitcoinManager {
         this.isInitialized = false;
     }
 
-
     public void start() {
         // Download the block chain and wait until it's done.
         kit.startAndWait();
@@ -67,6 +66,8 @@ public class BitcoinManager {
         addKeyIfMissing();
 
         startBankForwarder();
+
+        log.info(walletAsString());
 
         kit.wallet().addEventListener(new AbstractWalletEventListener() {
             @Override
@@ -98,6 +99,10 @@ public class BitcoinManager {
         forwarder.stop();
     }
 
+    public void commitTransaction(Transaction tx) {
+       kit.wallet().maybeCommitTx(tx);
+    }
+
     public ECKey addKey() {
         final ECKey newKey = new ECKey();
         kit.wallet().addKey(newKey);
@@ -109,6 +114,10 @@ public class BitcoinManager {
         if (config.shouldGenerateKey()) {
             addKey();
         }
+    }
+
+    public String walletAsString() {
+        return kit.wallet().toString(false, true, true, null);
     }
 
     public Collection<TransactionOutput> isMine(final ByteString transactionBytes) {
@@ -124,7 +133,8 @@ public class BitcoinManager {
 
     public Transaction broadcastTransaction(final ByteString transactionBytes) throws ExecutionException, InterruptedException {
         final Transaction tx = new Transaction(getNetworkParameters(), transactionBytes.toByteArray());
-        return kit.peerGroup().broadcastTransaction(tx).get();
+        kit.peerGroup().broadcastTransaction(tx);
+        return tx;
     }
 
     private WalletAppKit initializeKit() {
@@ -136,6 +146,7 @@ public class BitcoinManager {
 
         // Start up a basic app using a class that automates some boilerplate.
         final WalletAppKit tmpKit = new WalletAppKit(params, new File(config.getInstallDirectory()), filePrefix);
+        tmpKit.setAutoSave(true);
         tmpKit.setUserAgent("killbill", "1.0");
 
         if (params == RegTestParams.get()) {

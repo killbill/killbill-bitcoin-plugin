@@ -70,7 +70,7 @@ public class PendingPaymentDao {
 
             @Override
             public List<PendingPayment> inTransaction(Handle h, TransactionStatus status) throws Exception {
-                return h.createQuery("select * from btc_pending_payments where btc_contract_id = :btc_contract_id order by record_id asc")
+                return h.createQuery("select * from btc_pending_payments where btc_contract_id = :btc_contract_id and btc_tx is null order by record_id asc")
                         .bind("btc_contract_id", btcContractId.toString())
                         .map(paymentMapper)
                         .list();

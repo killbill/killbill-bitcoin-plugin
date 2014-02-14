@@ -65,15 +65,8 @@ public class BitcoinPaymentPluginApi implements PaymentPluginApi {
             final Invoice invoice = killbillAPI.getInvoiceUserApi().getInvoice(payment.getInvoiceId(), context);
             Preconditions.checkState(invoice.getInvoiceItems().size() == 1, "Are you subscription aligned?");
 
-            final List<CustomField> customFields = killbillAPI.getCustomFieldUserApi().getCustomFieldsForObject(invoice.getInvoiceItems().get(0).getSubscriptionId(), ObjectType.SUBSCRIPTION, context);
-            final CustomField customField = Iterables.tryFind(customFields, new Predicate<CustomField>() {
-                @Override
-                public boolean apply(CustomField input) {
-                    return input.getFieldName().equals(CONTRACT_FIELD_NAME);
-                }
-            }).get();
-
-            return new BitcoinPaymentInfoPlugin(kbPaymentId, payment.getAmount(), payment.getCurrency(), new DateTime(DateTimeZone.UTC), customField.getFieldValue());
+            // TODO broken
+            return new BitcoinPaymentInfoPlugin(kbPaymentId, payment.getAmount(), payment.getCurrency(), new DateTime(DateTimeZone.UTC), invoice.getInvoiceItems().get(0).getSubscriptionId().toString());
         } catch (BillingExceptionBase e) {
             throw new PaymentPluginApiException("Error getting the custom field", e);
         }
